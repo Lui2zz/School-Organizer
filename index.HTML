@@ -1,0 +1,1076 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Personal Calendar & Task Manager</title>
+    
+    <!-- Firebase SDKs -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/9.23.0/firebase-app-compat.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/9.23.0/firebase-auth-compat.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/9.23.0/firebase-firestore-compat.min.js"></script>
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        /* Authentication Styles */
+        .auth-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        .auth-form {
+            background: white;
+            padding: 40px;
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            width: 100%;
+            max-width: 400px;
+        }
+
+        .auth-form h2 {
+            text-align: center;
+            margin-bottom: 30px;
+            color: #667eea;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #555;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e1e1e1;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .btn {
+            width: 100%;
+            padding: 12px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .auth-switch {
+            text-align: center;
+            margin-top: 20px;
+            color: #666;
+        }
+
+        .auth-switch a {
+            color: #667eea;
+            text-decoration: none;
+            font-weight: 600;
+        }
+
+        /* Loading spinner */
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 2px solid #ffffff;
+            border-radius: 50%;
+            border-top-color: transparent;
+            animation: spin 1s ease-in-out infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Firebase Setup Notice */
+        .firebase-notice {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 20px;
+            color: #856404;
+        }
+
+        .firebase-notice strong {
+            color: #d4691a;
+        }
+
+        /* Main App Styles */
+        .app-header {
+            background: white;
+            padding: 20px;
+            border-radius: 15px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .app-header h1 {
+            color: #667eea;
+        }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .logout-btn {
+            padding: 8px 16px;
+            background: #ff6b6b;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .main-content {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 20px;
+        }
+
+        @media (max-width: 768px) {
+            .main-content {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Calendar Styles */
+        .calendar-section {
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+
+        .calendar-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .calendar-nav {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .nav-btn {
+            padding: 8px 12px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+
+        .calendar-grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 1px;
+            background: #e1e1e1;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .calendar-day-header {
+            background: #667eea;
+            color: white;
+            padding: 10px;
+            text-align: center;
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        .calendar-day {
+            background: white;
+            padding: 8px;
+            min-height: 80px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            position: relative;
+        }
+
+        .calendar-day:hover {
+            background: #f8f9ff;
+        }
+
+        .calendar-day.other-month {
+            background: #f5f5f5;
+            color: #999;
+        }
+
+        .calendar-day.today {
+            background: #fff3cd;
+        }
+
+        .day-number {
+            font-weight: 600;
+            margin-bottom: 5px;
+        }
+
+        .day-events {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .event-item {
+            background: #667eea;
+            color: white;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 10px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        /* Task Styles */
+        .task-section {
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+
+        .task-input {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .task-input input {
+            flex: 1;
+            padding: 10px;
+            border: 2px solid #e1e1e1;
+            border-radius: 6px;
+        }
+
+        .add-task-btn {
+            padding: 10px 15px;
+            background: #28a745;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+
+        .task-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .task-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 12px;
+            background: #f8f9ff;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+        }
+
+        .task-item.completed {
+            opacity: 0.6;
+            text-decoration: line-through;
+        }
+
+        .task-checkbox {
+            margin: 0;
+        }
+
+        .task-text {
+            flex: 1;
+        }
+
+        .delete-task {
+            background: #ff6b6b;
+            color: white;
+            border: none;
+            padding: 5px 8px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+
+        /* Modal Styles */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+        }
+
+        .modal-content {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            width: 90%;
+            max-width: 500px;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .close-modal {
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: #999;
+        }
+
+        .error-message {
+            color: #ff6b6b;
+            text-align: center;
+            margin-top: 10px;
+            font-size: 14px;
+        }
+
+        .success-message {
+            color: #28a745;
+            text-align: center;
+            margin-top: 10px;
+            font-size: 14px;
+        }
+
+        .sync-status {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .sync-status.online {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .sync-status.offline {
+            background: #f8d7da;
+            color: #721c24;
+        }
+    </style>
+</head>
+<body>
+    <!-- Authentication Form -->
+    <div id="authContainer" class="auth-container">
+        <div class="auth-form">
+            <div class="firebase-notice" style="display: none;">
+                <strong>🔧 Setup Required:</strong> Please add your Firebase configuration in the JavaScript section at the bottom of this file. Replace the placeholder config with your actual Firebase project settings.
+            </div>
+            
+            <h2 id="authTitle">Login</h2>
+            <form id="authForm">
+                <div class="form-group">
+                    <label for="email">Email</label>
+                    <input type="email" id="email" required>
+                </div>
+                <div class="form-group">
+                    <label for="password">Password</label>
+                    <input type="password" id="password" required minlength="6">
+                </div>
+                <button type="submit" class="btn" id="authSubmit">
+                    <span id="authButtonText">Login</span>
+                    <span id="authLoader" class="loading" style="display: none;"></span>
+                </button>
+                <div id="authMessage" class="error-message"></div>
+            </form>
+            <div class="auth-switch">
+                <span id="authSwitchText">Don't have an account?</span>
+                <a href="#" id="authSwitchLink">Register</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Application -->
+    <div id="appContainer" class="container" style="display: none;">
+        <div class="app-header">
+            <h1>Personal Calendar & Tasks</h1>
+            <div class="user-info">
+                <span class="sync-status" id="syncStatus">🔄 Syncing...</span>
+                <span>Welcome, <strong id="currentUser"></strong></span>
+                <button class="logout-btn" onclick="logout()">Logout</button>
+            </div>
+        </div>
+
+        <div class="main-content">
+            <div class="calendar-section">
+                <div class="calendar-header">
+                    <h3>Calendar</h3>
+                    <div class="calendar-nav">
+                        <button class="nav-btn" onclick="previousMonth()">‹</button>
+                        <span id="currentMonth"></span>
+                        <button class="nav-btn" onclick="nextMonth()">›</button>
+                        <button class="btn" style="margin-left: 10px; padding: 8px 12px;" onclick="openEventModal()">Add Event</button>
+                    </div>
+                </div>
+                <div class="calendar-grid" id="calendarGrid">
+                    <!-- Calendar will be generated here -->
+                </div>
+            </div>
+
+            <div class="task-section">
+                <h3>Tasks</h3>
+                <div class="task-input">
+                    <input type="text" id="taskInput" placeholder="Add a new task...">
+                    <button class="add-task-btn" onclick="addTask()">Add</button>
+                </div>
+                <div class="task-list" id="taskList">
+                    <!-- Tasks will be generated here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Event Modal -->
+    <div id="eventModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Add Event</h3>
+                <button class="close-modal" onclick="closeEventModal()">&times;</button>
+            </div>
+            <form id="eventForm">
+                <div class="form-group">
+                    <label for="eventTitle">Event Title</label>
+                    <input type="text" id="eventTitle" required>
+                </div>
+                <div class="form-group">
+                    <label for="eventDate">Date</label>
+                    <input type="date" id="eventDate" required>
+                </div>
+                <div class="form-group">
+                    <label for="eventTime">Time</label>
+                    <input type="time" id="eventTime">
+                </div>
+                <div class="form-group">
+                    <label for="eventDescription">Description</label>
+                    <textarea id="eventDescription" rows="3" style="width: 100%; padding: 10px; border: 2px solid #e1e1e1; border-radius: 6px;"></textarea>
+                </div>
+                <button type="submit" class="btn">Save Event</button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // 🔥 FIREBASE CONFIGURATION - YOUR ACTUAL CONFIG
+        const firebaseConfig = {
+            apiKey: "AIzaSyAwk36ndM5ATvklfhhV89Vaf5kvakrH_bs",
+            authDomain: "my-calendar-app-60439.firebaseapp.com",
+            projectId: "my-calendar-app-60439",
+            storageBucket: "my-calendar-app-60439.firebasestorage.app",
+            messagingSenderId: "580188957244",
+            appId: "1:580188957244:web:476f0405a356063f553139"
+        };
+
+        // Initialize Firebase (only if config is properly set)
+        let app, auth, db;
+        let isFirebaseConfigured = false;
+
+        try {
+            app = firebase.initializeApp(firebaseConfig);
+            auth = firebase.auth();
+            db = firebase.firestore();
+            isFirebaseConfigured = true;
+            
+            // Hide the configuration notice
+            document.querySelector('.firebase-notice').style.display = 'none';
+        } catch (error) {
+            console.error("Firebase initialization error:", error);
+        }
+
+        // Global state
+        let currentUser = null;
+        let currentDate = new Date();
+        let selectedDate = null;
+        let isLoginMode = true;
+        let userEvents = [];
+        let userTasks = [];
+
+        // Initialize app
+        document.addEventListener('DOMContentLoaded', function() {
+            setupAuthForm();
+            
+            if (isFirebaseConfigured) {
+                // Listen for authentication state changes
+                auth.onAuthStateChanged(user => {
+                    if (user) {
+                        currentUser = user;
+                        showApp();
+                        loadUserData();
+                    } else {
+                        currentUser = null;
+                        showAuth();
+                    }
+                });
+            } else {
+                console.warn("Firebase not configured. Please add your Firebase config.");
+            }
+        });
+
+        // Authentication Functions
+        function setupAuthForm() {
+            const authForm = document.getElementById('authForm');
+            const authSwitchLink = document.getElementById('authSwitchLink');
+
+            authForm.addEventListener('submit', handleAuth);
+            authSwitchLink.addEventListener('click', toggleAuthMode);
+        }
+
+        function toggleAuthMode(e) {
+            e.preventDefault();
+            isLoginMode = !isLoginMode;
+            
+            const authTitle = document.getElementById('authTitle');
+            const authButtonText = document.getElementById('authButtonText');
+            const authSwitchText = document.getElementById('authSwitchText');
+            const authSwitchLink = document.getElementById('authSwitchLink');
+
+            if (isLoginMode) {
+                authTitle.textContent = 'Login';
+                authButtonText.textContent = 'Login';
+                authSwitchText.textContent = "Don't have an account?";
+                authSwitchLink.textContent = 'Register';
+            } else {
+                authTitle.textContent = 'Register';
+                authButtonText.textContent = 'Register';
+                authSwitchText.textContent = 'Already have an account?';
+                authSwitchLink.textContent = 'Login';
+            }
+            
+            clearAuthMessage();
+        }
+
+        async function handleAuth(e) {
+            e.preventDefault();
+            
+            if (!isFirebaseConfigured) {
+                showAuthMessage('Please configure Firebase first. Check the console for instructions.', 'error');
+                return;
+            }
+
+            const email = document.getElementById('email').value.trim();
+            const password = document.getElementById('password').value;
+
+            if (!email || !password) {
+                showAuthMessage('Please fill in all fields', 'error');
+                return;
+            }
+
+            if (password.length < 6) {
+                showAuthMessage('Password must be at least 6 characters', 'error');
+                return;
+            }
+
+            showAuthLoading(true);
+
+            try {
+                if (isLoginMode) {
+                    await auth.signInWithEmailAndPassword(email, password);
+                } else {
+                    await auth.createUserWithEmailAndPassword(email, password);
+                    showAuthMessage('Account created successfully!', 'success');
+                }
+            } catch (error) {
+                showAuthMessage(getAuthErrorMessage(error.code), 'error');
+            }
+
+            showAuthLoading(false);
+        }
+
+        function getAuthErrorMessage(errorCode) {
+            switch (errorCode) {
+                case 'auth/user-not-found':
+                case 'auth/wrong-password':
+                    return 'Invalid email or password';
+                case 'auth/email-already-in-use':
+                    return 'Email already registered';
+                case 'auth/weak-password':
+                    return 'Password is too weak';
+                case 'auth/invalid-email':
+                    return 'Invalid email address';
+                default:
+                    return 'Authentication failed. Please try again.';
+            }
+        }
+
+        function showAuthLoading(loading) {
+            const submitBtn = document.getElementById('authSubmit');
+            const buttonText = document.getElementById('authButtonText');
+            const loader = document.getElementById('authLoader');
+
+            submitBtn.disabled = loading;
+            buttonText.style.display = loading ? 'none' : 'inline';
+            loader.style.display = loading ? 'inline-block' : 'none';
+        }
+
+        async function logout() {
+            if (isFirebaseConfigured) {
+                try {
+                    await auth.signOut();
+                } catch (error) {
+                    console.error('Logout error:', error);
+                }
+            }
+            
+            // Clear local data
+            userEvents = [];
+            userTasks = [];
+            
+            // Reset form
+            document.getElementById('email').value = '';
+            document.getElementById('password').value = '';
+            clearAuthMessage();
+        }
+
+        function showAuthMessage(message, type) {
+            const messageEl = document.getElementById('authMessage');
+            messageEl.textContent = message;
+            messageEl.className = type === 'error' ? 'error-message' : 'success-message';
+        }
+
+        function clearAuthMessage() {
+            document.getElementById('authMessage').textContent = '';
+        }
+
+        function showApp() {
+            document.getElementById('authContainer').style.display = 'none';
+            document.getElementById('appContainer').style.display = 'block';
+            
+            if (currentUser) {
+                const userEmail = currentUser.email;
+                document.getElementById('currentUser').textContent = userEmail.split('@')[0];
+            }
+            
+            generateCalendar();
+            loadTasks();
+            updateSyncStatus('online');
+        }
+
+        function showAuth() {
+            document.getElementById('authContainer').style.display = 'flex';
+            document.getElementById('appContainer').style.display = 'none';
+        }
+
+        function updateSyncStatus(status) {
+            const syncEl = document.getElementById('syncStatus');
+            if (status === 'online') {
+                syncEl.textContent = '✅ Synced';
+                syncEl.className = 'sync-status online';
+            } else {
+                syncEl.textContent = '⚠️ Offline';
+                syncEl.className = 'sync-status offline';
+            }
+        }
+
+        // Firebase Data Functions
+        async function loadUserData() {
+            if (!isFirebaseConfigured || !currentUser) return;
+
+            try {
+                // Load events
+                const eventsSnapshot = await db.collection('users')
+                    .doc(currentUser.uid)
+                    .collection('events')
+                    .orderBy('date')
+                    .get();
+                
+                userEvents = eventsSnapshot.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data()
+                }));
+
+                // Load tasks
+                const tasksSnapshot = await db.collection('users')
+                    .doc(currentUser.uid)
+                    .collection('tasks')
+                    .orderBy('createdAt', 'desc')
+                    .get();
+                
+                userTasks = tasksSnapshot.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data()
+                }));
+
+                // Refresh UI
+                generateCalendar();
+                loadTasks();
+                updateSyncStatus('online');
+            } catch (error) {
+                console.error('Error loading user data:', error);
+                updateSyncStatus('offline');
+            }
+        }
+
+        async function saveEvent(eventData) {
+            if (!isFirebaseConfigured || !currentUser) return;
+
+            try {
+                const docRef = await db.collection('users')
+                    .doc(currentUser.uid)
+                    .collection('events')
+                    .add(eventData);
+                
+                userEvents.push({ id: docRef.id, ...eventData });
+                updateSyncStatus('online');
+                return docRef.id;
+            } catch (error) {
+                console.error('Error saving event:', error);
+                updateSyncStatus('offline');
+                throw error;
+            }
+        }
+
+        async function saveTask(taskData) {
+            if (!isFirebaseConfigured || !currentUser) return;
+
+            try {
+                const docRef = await db.collection('users')
+                    .doc(currentUser.uid)
+                    .collection('tasks')
+                    .add(taskData);
+                
+                userTasks.unshift({ id: docRef.id, ...taskData });
+                updateSyncStatus('online');
+                return docRef.id;
+            } catch (error) {
+                console.error('Error saving task:', error);
+                updateSyncStatus('offline');
+                throw error;
+            }
+        }
+
+        async function updateTask(taskId, updates) {
+            if (!isFirebaseConfigured || !currentUser) return;
+
+            try {
+                await db.collection('users')
+                    .doc(currentUser.uid)
+                    .collection('tasks')
+                    .doc(taskId)
+                    .update(updates);
+                
+                const taskIndex = userTasks.findIndex(t => t.id === taskId);
+                if (taskIndex !== -1) {
+                    userTasks[taskIndex] = { ...userTasks[taskIndex], ...updates };
+                }
+                updateSyncStatus('online');
+            } catch (error) {
+                console.error('Error updating task:', error);
+                updateSyncStatus('offline');
+                throw error;
+            }
+        }
+
+        async function deleteTask(taskId) {
+            if (!isFirebaseConfigured || !currentUser) return;
+
+            try {
+                await db.collection('users')
+                    .doc(currentUser.uid)
+                    .collection('tasks')
+                    .doc(taskId)
+                    .delete();
+                
+                userTasks = userTasks.filter(t => t.id !== taskId);
+                updateSyncStatus('online');
+            } catch (error) {
+                console.error('Error deleting task:', error);
+                updateSyncStatus('offline');
+                throw error;
+            }
+        }
+
+        // Calendar Functions
+        function generateCalendar() {
+            const calendar = document.getElementById('calendarGrid');
+            const monthHeader = document.getElementById('currentMonth');
+            
+            // Clear calendar
+            calendar.innerHTML = '';
+            
+            // Update month header
+            const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
+                              'July', 'August', 'September', 'October', 'November', 'December'];
+            monthHeader.textContent = `${monthNames[currentDate.getMonth()]} ${currentDate.getFullYear()}`;
+            
+            // Add day headers
+            const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+            days.forEach(day => {
+                const dayHeader = document.createElement('div');
+                dayHeader.className = 'calendar-day-header';
+                dayHeader.textContent = day;
+                calendar.appendChild(dayHeader);
+            });
+            
+            // Get first day of month and number of days
+            const firstDay = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
+            const lastDay = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
+            const startDate = new Date(firstDay);
+            startDate.setDate(startDate.getDate() - firstDay.getDay());
+            
+            // Generate calendar days
+            const today = new Date();
+            
+            for (let i = 0; i < 42; i++) {
+                const date = new Date(startDate);
+                date.setDate(startDate.getDate() + i);
+                
+                const dayEl = document.createElement('div');
+                dayEl.className = 'calendar-day';
+                
+                if (date.getMonth() !== currentDate.getMonth()) {
+                    dayEl.classList.add('other-month');
+                }
+                
+                if (date.toDateString() === today.toDateString()) {
+                    dayEl.classList.add('today');
+                }
+                
+                dayEl.addEventListener('click', () => selectDate(date));
+                
+                const dayNumber = document.createElement('div');
+                dayNumber.className = 'day-number';
+                dayNumber.textContent = date.getDate();
+                dayEl.appendChild(dayNumber);
+                
+                // Add events for this day
+                const dayEvents = document.createElement('div');
+                dayEvents.className = 'day-events';
+                
+                const dateString = date.toISOString().split('T')[0];
+                const dayEventList = userEvents.filter(event => event.date === dateString);
+                
+                dayEventList.forEach(event => {
+                    const eventEl = document.createElement('div');
+                    eventEl.className = 'event-item';
+                    eventEl.textContent = event.title;
+                    dayEvents.appendChild(eventEl);
+                });
+                
+                dayEl.appendChild(dayEvents);
+                calendar.appendChild(dayEl);
+            }
+        }
+
+        function previousMonth() {
+            currentDate.setMonth(currentDate.getMonth() - 1);
+            generateCalendar();
+        }
+
+        function nextMonth() {
+            currentDate.setMonth(currentDate.getMonth() + 1);
+            generateCalendar();
+        }
+
+        function selectDate(date) {
+            selectedDate = date;
+            document.getElementById('eventDate').value = date.toISOString().split('T')[0];
+            openEventModal();
+        }
+
+        // Event Modal Functions
+        function openEventModal() {
+            document.getElementById('eventModal').style.display = 'block';
+            if (!selectedDate) {
+                document.getElementById('eventDate').value = new Date().toISOString().split('T')[0];
+            }
+        }
+
+        function closeEventModal() {
+            document.getElementById('eventModal').style.display = 'none';
+            document.getElementById('eventForm').reset();
+            selectedDate = null;
+        }
+
+        // Event Form Handler
+        document.getElementById('eventForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const title = document.getElementById('eventTitle').value.trim();
+            const date = document.getElementById('eventDate').value;
+            const time = document.getElementById('eventTime').value;
+            const description = document.getElementById('eventDescription').value.trim();
+            
+            if (!title || !date) {
+                alert('Please fill in the title and date');
+                return;
+            }
+            
+            const eventData = {
+                title,
+                date,
+                time,
+                description,
+                createdAt: new Date().toISOString()
+            };
+            
+            try {
+                await saveEvent(eventData);
+                closeEventModal();
+                generateCalendar();
+            } catch (error) {
+                alert('Error saving event. Please try again.');
+            }
+        });
+
+        // Task Functions
+        async function addTask() {
+            const taskInput = document.getElementById('taskInput');
+            const taskText = taskInput.value.trim();
+            
+            if (!taskText) return;
+            
+            const taskData = {
+                text: taskText,
+                completed: false,
+                createdAt: new Date().toISOString()
+            };
+            
+            try {
+                await saveTask(taskData);
+                taskInput.value = '';
+                loadTasks();
+            } catch (error) {
+                alert('Error saving task. Please try again.');
+            }
+        }
+
+        function loadTasks() {
+            const taskList = document.getElementById('taskList');
+            
+            taskList.innerHTML = '';
+            
+            userTasks.forEach(task => {
+                const taskEl = document.createElement('div');
+                taskEl.className = `task-item ${task.completed ? 'completed' : ''}`;
+                
+                taskEl.innerHTML = `
+                    <input type="checkbox" class="task-checkbox" ${task.completed ? 'checked' : ''} 
+                           onchange="toggleTask('${task.id}')">
+                    <span class="task-text">${task.text}</span>
+                    <button class="delete-task" onclick="removeTask('${task.id}')">Delete</button>
+                `;
+                
+                taskList.appendChild(taskEl);
+            });
+        }
+
+        async function toggleTask(taskId) {
+            const task = userTasks.find(t => t.id === taskId);
+            if (!task) return;
+            
+            try {
+                await updateTask(taskId, { completed: !task.completed });
+                loadTasks();
+            } catch (error) {
+                alert('Error updating task. Please try again.');
+                loadTasks(); // Reload to revert UI changes
+            }
+        }
+
+        async function removeTask(taskId) {
+            try {
+                await deleteTask(taskId);
+                loadTasks();
+            } catch (error) {
+                alert('Error deleting task. Please try again.');
+            }
+        }
+
+        // Task input enter key handler
+        document.getElementById('taskInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                addTask();
+            }
+        });
+
+        // Close modal when clicking outside
+        window.addEventListener('click', function(e) {
+            const modal = document.getElementById('eventModal');
+            if (e.target === modal) {
+                closeEventModal();
+            }
+        });
+
+        // Check for network connectivity
+        window.addEventListener('online', () => {
+            updateSyncStatus('online');
+            if (currentUser) {
+                loadUserData(); // Refresh data when back online
+            }
+        });
+
+        window.addEventListener('offline', () => {
+            updateSyncStatus('offline');
+        });
+    </script>
+</body>
+</html>
